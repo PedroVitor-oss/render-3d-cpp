@@ -111,6 +111,27 @@ public:
                      WorldToScreen(vertices[this->c], cam), // c antes de b
                      WorldToScreen(vertices[this->b], cam),
                      cl);
+        this->drawWireframe(vertices, cam);
+    }
+    // Adicione dentro da classe Face, no public:
+    void drawWireframe(const std::vector<Vector3> &vertices, enginep::Camera &cam) const
+    {
+        if (!isFrontFacing(vertices, cam))
+            return;
+
+        Vector2 pA = WorldToScreen(vertices[this->a], cam);
+        Vector2 pB = WorldToScreen(vertices[this->b], cam);
+        Vector2 pC = WorldToScreen(vertices[this->c], cam);
+
+        // Desenha as 3 arestas do triângulo em preto
+        DrawLineV(pA, pB, BLACK);
+        DrawLineV(pB, pC, BLACK);
+        DrawLineV(pC, pA, BLACK);
+
+        // Desenha os pontinhos nos vértices (opcional, mas fica bonitinho)
+        // DrawCircleV(pA, 3, RED);
+        // DrawCircleV(pB, 3, RED);
+        // DrawCircleV(pC, 3, RED);
     }
 };
 
@@ -172,7 +193,7 @@ public:
 
         file.close();
     }
-    void Renderer(enginep::Camera& cam)
+    void Renderer(enginep::Camera &cam)
     {
         for (const auto &f : this->faces)
             f.draw(vertices, cam);
@@ -186,36 +207,6 @@ int main()
     // return 1;
     InitWindow(WIDTH_WINDOWS, HEIGHT_WINDOWS, "engine 3d");
     SetTargetFPS(60);
-
-    // std::vector<Vector3> vertices = {
-    //     {10, 10, 30},   // 0
-    //     {-10, 10, 30},  // 1
-    //     {-10, -10, 30}, // 2
-    //     {10, -10, 30},  // 3
-    //     {10, 10, 50},   // 4
-    //     {-10, 10, 50},  // 5
-    //     {-10, -10, 50}, // 6
-    //     {10, -10, 50}}; // 7
-
-    // std::vector<Face> faces = {
-    //     // frente
-    //     {0, 3, 1, RED},
-    //     {1, 3, 2, RED},
-    //     // trás
-    //     {4, 5, 7, BLUE},
-    //     {5, 6, 7, BLUE},
-    //     // lateral direita
-    //     {0, 4, 3, GREEN},
-    //     {4, 7, 3, GREEN},
-    //     // lateral esquerda
-    //     {1, 2, 5, YELLOW},
-    //     {5, 2, 6, YELLOW},
-    //     // topo
-    //     {0, 5, 4, ORANGE},
-    //     {0, 1, 5, ORANGE},
-    //     // base
-    //     {3, 7, 6, PURPLE},
-    //     {3, 6, 2, PURPLE}};
 
     enginep::Camera cam;
 
