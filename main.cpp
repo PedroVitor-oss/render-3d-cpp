@@ -13,15 +13,33 @@ namespace enginep
     {
     public:
         Vector3 camPos = {0, 0, 0};
+        Vector3 rotate = {0, 0, 0}; // 0, eixo y , 0
     };
 };
 
-Vector3 WorldCam(Vector3 pointInWorld, const enginep::Camera &cam)
+Vector3 GetForwardVector(Vector3 rotate)
 {
     return {
+        sinf(rotate.y) * cosf(rotate.x),
+        -sinf(rotate.x),
+        cosf(rotate.y) * cosf(rotate.x)};
+}
+
+Vector3 WorldCam(Vector3 pointInWorld, const enginep::Camera &cam)
+{
+    Vector3 p = {
         pointInWorld.x - cam.camPos.x,
         pointInWorld.y - cam.camPos.y,
         pointInWorld.z - cam.camPos.z};
+
+    float c = cosf(-cam.rotate.y);
+    float s = sinf(-cam.rotate.y);
+
+    float tempx = p.x;
+
+    p.x = p.x * c - p.z * s;
+    p.z = tempx * s + p.z * c;
+    return p;
 }
 
 Vector2 PointPerspective(Vector3 v)
@@ -134,28 +152,43 @@ int main()
     {
         float dt = GetFrameTime();
         float speed = 10;
-        if (IsKeyDown(KEY_A))
-            cam.camPos.x -= speed * dt;
-        if (IsKeyDown(KEY_D))
-            cam.camPos.x += speed * dt;
-        if (IsKeyDown(KEY_W))
-            cam.camPos.z += speed * dt;
-        if (IsKeyDown(KEY_S))
-            cam.camPos.z -= speed * dt;
+        float speedRotate = 1.0f;
+        // movimento
 
-        // pequena fisic de pulo para ve a face de cima 
-        if(IsKeyPressed(KEY_SPACE)){
-            cam.camPos.y+=0.5f;
-             vycam = 1;
+
+        Vector3 forward = GetForwardVector(cam.rotate);
+        if (IsKeyDown(KEY_W))
+        {
+            cam.camPos.z += speed * dt * forward.z; 
+            cam.camPos.x -= speed * dt * forward.x;
+
+        }
+        if (IsKeyDown(KEY_S))
+        {
+            cam.camPos.z -= speed * dt * forward.z; 
+            cam.camPos.x += speed * dt * forward.x;
+        }
+
+        // rotação
+        if (IsKeyDown(KEY_LEFT))
+            cam.rotate.y -= speedRotate * dt;
+        if (IsKeyDown(KEY_RIGHT))
+            cam.rotate.y += speedRotate * dt;
+
+        // pequena fisic de pulo para ve a face de cima
+        if (IsKeyPressed(KEY_SPACE))
+        {
+            cam.camPos.y += 0.5f;
+            vycam = 1;
         }
         vycam -= 0.9f * dt;
 
-        if(cam.camPos.y<=0){
-            vycam =0;
-            cam.camPos.y =0;
+        if (cam.camPos.y <= 0)
+        {
+            vycam = 0;
+            cam.camPos.y = 0;
         }
-         cam.camPos.y += vycam;
-
+        cam.camPos.y += vycam;
 
         BeginDrawing();
         ClearBackground(BLACK);
