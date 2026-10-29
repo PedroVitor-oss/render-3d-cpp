@@ -1,6 +1,10 @@
 #include "raylib.h"
 #include <vector>
 #include <math.h>
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <sstream>
 #include <algorithm>
 
 constexpr int WIDTH_WINDOWS = 700;
@@ -65,6 +69,7 @@ Vector2 WorldToScreen(Vector3 v, const enginep::Camera &cam)
 
 class Face
 {
+
     int a, b, c;
     Color cl = WHITE;
 
@@ -109,40 +114,108 @@ public:
     }
 };
 
+class Model3D
+{
+private:
+    std::vector<Vector3> vertices;
+    std::vector<Face> faces;
+    void AddVertice(std::string data)
+    {
+        std::stringstream stream(data);
+
+        char type;
+        Vector3 v;
+        stream >> type >> v.x >> v.y >> v.z;
+        // std::cout<<"AddVertice - id: "<<vertices.size()<<std::endl;
+        vertices.push_back(v);
+    }
+    void AddFace(std::string data)
+    {
+        std::stringstream stream(data);
+        char type;
+        int A, B, C, COLORID;
+        stream >> type >> A >> B >> C >> COLORID;
+        Face f = {A, B, C, WHITE};
+        faces.push_back(f);
+    }
+
+public:
+    void Init(std::string path)
+    {
+        // abrir arquivo
+        std::fstream file;
+        file.open(path);
+        if (!file.is_open())
+        {
+            std::cout << "Erro ao abrir arquivo do modelo 3d. Path file: " << path << std::endl;
+            file.close();
+            return;
+        }
+
+        // std::cout<<"arquivo aberto com sucesso";
+        std::string line;
+        while (std::getline(file, line))
+        {
+            std::cout << line << std::endl;
+            switch ((char)line[0])
+            {
+            case 'v':
+                this->AddVertice(line);
+                break;
+            case 'f':
+                this->AddFace(line);
+                break;
+            default:
+                break;
+            }
+        }
+
+        file.close();
+    }
+    void Renderer(enginep::Camera& cam)
+    {
+        for (const auto &f : this->faces)
+            f.draw(vertices, cam);
+    }
+};
 int main()
 {
+    Model3D cubo;
+    cubo.Init("models/cubo.mdl");
+
+    // return 1;
     InitWindow(WIDTH_WINDOWS, HEIGHT_WINDOWS, "engine 3d");
     SetTargetFPS(60);
 
-    std::vector<Vector3> vertices = {
-        {10, 10, 30},   // 0
-        {-10, 10, 30},  // 1
-        {-10, -10, 30}, // 2
-        {10, -10, 30},  // 3
-        {10, 10, 50},   // 4
-        {-10, 10, 50},  // 5
-        {-10, -10, 50}, // 6
-        {10, -10, 50}}; // 7
+    // std::vector<Vector3> vertices = {
+    //     {10, 10, 30},   // 0
+    //     {-10, 10, 30},  // 1
+    //     {-10, -10, 30}, // 2
+    //     {10, -10, 30},  // 3
+    //     {10, 10, 50},   // 4
+    //     {-10, 10, 50},  // 5
+    //     {-10, -10, 50}, // 6
+    //     {10, -10, 50}}; // 7
 
-    std::vector<Face> faces = {
-        // frente
-        {0, 3, 1, RED},
-        {1, 3, 2, RED},
-        // trás
-        {4, 5, 7, BLUE},
-        {5, 6, 7, BLUE},
-        // lateral direita
-        {0, 4, 3, GREEN},
-        {4, 7, 3, GREEN},
-        // lateral esquerda
-        {1, 2, 5, YELLOW},
-        {5, 2, 6, YELLOW},
-        // topo
-        {0, 5, 4, ORANGE},
-        {0, 1, 5, ORANGE},
-        // base
-        {3, 7, 6, PURPLE},
-        {3, 6, 2, PURPLE}};
+    // std::vector<Face> faces = {
+    //     // frente
+    //     {0, 3, 1, RED},
+    //     {1, 3, 2, RED},
+    //     // trás
+    //     {4, 5, 7, BLUE},
+    //     {5, 6, 7, BLUE},
+    //     // lateral direita
+    //     {0, 4, 3, GREEN},
+    //     {4, 7, 3, GREEN},
+    //     // lateral esquerda
+    //     {1, 2, 5, YELLOW},
+    //     {5, 2, 6, YELLOW},
+    //     // topo
+    //     {0, 5, 4, ORANGE},
+    //     {0, 1, 5, ORANGE},
+    //     // base
+    //     {3, 7, 6, PURPLE},
+    //     {3, 6, 2, PURPLE}};
 
     enginep::Camera cam;
 
@@ -155,17 +228,15 @@ int main()
         float speedRotate = 1.0f;
         // movimento
 
-
         Vector3 forward = GetForwardVector(cam.rotate);
         if (IsKeyDown(KEY_W))
         {
-            cam.camPos.z += speed * dt * forward.z; 
+            cam.camPos.z += speed * dt * forward.z;
             cam.camPos.x -= speed * dt * forward.x;
-
         }
         if (IsKeyDown(KEY_S))
         {
-            cam.camPos.z -= speed * dt * forward.z; 
+            cam.camPos.z -= speed * dt * forward.z;
             cam.camPos.x += speed * dt * forward.x;
         }
 
@@ -193,9 +264,9 @@ int main()
         BeginDrawing();
         ClearBackground(BLACK);
 
-        // SEM SORT! O Backface Culling já resolve o problema para este cubo.
-        for (const auto &f : faces)
-            f.draw(vertices, cam);
+        cubo.Renderer(cam);
+        // for (const auto &f : faces)
+        //     f.draw(vertices, cam);
 
         EndDrawing();
     }
