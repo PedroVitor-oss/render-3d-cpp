@@ -1,14 +1,12 @@
 #include "raylib.h"
 #include <vector>
 #include <math.h>
+#include <algorithm>
 
 constexpr int WIDTH_WINDOWS = 700;
 constexpr int HEIGHT_WINDOWS = 350;
-constexpr float WORLD_SCALE = 10.0f;
-// cofiguraçaõ de camera
 constexpr float FOV = 60.0f;
-constexpr float znear = 0.1f;
-constexpr float zfar = 50.0f;
+
 namespace enginep
 {
     class Camera
@@ -17,7 +15,16 @@ namespace enginep
         Vector3 camPos = {0, 0, 0};
     };
 };
-Vector2 PointPerspective(Vector3 v, enginep::Camera cam)
+
+Vector3 WorldCam(Vector3 pointInWorld, const enginep::Camera &cam)
+{
+    return {
+        pointInWorld.x - cam.camPos.x,
+        pointInWorld.y - cam.camPos.y,
+        pointInWorld.z - cam.camPos.z};
+}
+
+Vector2 PointPerspective(Vector3 v)
 {
     float aspect = (float)WIDTH_WINDOWS / (float)HEIGHT_WINDOWS;
     float angleRAD = FOV * (PI / 180);
@@ -27,45 +34,60 @@ Vector2 PointPerspective(Vector3 v, enginep::Camera cam)
     if (v.z <= 0.0001f)
         return {-10000, -10000};
 
-    // mnultiplixações bizaras
-    v2.x = ((v.x + cam.camPos.x )/ (v.z + cam.camPos.z)) * (f / aspect) * (WIDTH_WINDOWS / 2) + (WIDTH_WINDOWS / 2);
-    v2.y = (-v.y / (v.z + cam.camPos.z)) * (f) * (HEIGHT_WINDOWS / 2) + (HEIGHT_WINDOWS / 2);
+    v2.x = (v.x / v.z) * (f / aspect) * (WIDTH_WINDOWS / 2) + (WIDTH_WINDOWS / 2);
+    v2.y = (-v.y / v.z) * (f) * (HEIGHT_WINDOWS / 2) + (HEIGHT_WINDOWS / 2);
 
     return v2;
 }
 
-Vector2 WorldToScreen(Vector2 v)
+Vector2 WorldToScreen(Vector3 v, const enginep::Camera &cam)
 {
-    // Y invertido: +Y mundo = pra cima na tela
-    return {v.x * WORLD_SCALE + WIDTH_WINDOWS * 0.5f,
-            -v.y * WORLD_SCALE + HEIGHT_WINDOWS * 0.5f};
+    return PointPerspective(WorldCam(v, cam));
 }
-
-// class Triangle
-// {
-//     Vector3 a, b, c;
-
-// public:
-//     Triangle(Vector3 a, Vector3 b, Vector3 c) : a(a), b(b), c(c) {}
-
-//     void draw() const
-//     {
-//         // DrawTriangle(PointPerspective(a), PointPerspective(b), PointPerspective(c), WHITE);
-//     }
-// };
 
 class Face
 {
     int a, b, c;
+    Color cl = WHITE;
 
 public:
-    Face(int a, int b, int c) : a(a), b(b), c(c) {}
+    Face(int a, int b, int c, Color color = WHITE)
+        : a(a), b(b), c(c), cl(color) {}
+
+    // NOVO: Verifica se a face está virada para a câmera
+    bool isFrontFacing(const std::vector<Vector3> &vertices, const enginep::Camera &cam) const
+    {
+        Vector3 A = vertices[a];
+        Vector3 B = vertices[b];
+        Vector3 C = vertices[c];
+
+        // 1. Calcula os vetores da face
+        Vector3 AB = {B.x - A.x, B.y - A.y, B.z - A.z};
+        Vector3 AC = {C.x - A.x, C.y - A.y, C.z - A.z};
+
+        // 2. Produto vetorial para achar a Normal da face
+        Vector3 normal = {
+            AB.y * AC.z - AB.z * AC.y,
+            AB.z * AC.x - AB.x * AC.z,
+            AB.x * AC.y - AB.y * AC.x};
+
+        // 3. Vetor da face até a câmera
+        Vector3 toCam = {cam.camPos.x - A.x, cam.camPos.y - A.y, cam.camPos.z - A.z};
+
+        // 4. Produto escalar (Dot Product). Se for > 0, a normal aponta para a câmera.
+        float dot = normal.x * toCam.x + normal.y * toCam.y + normal.z * toCam.z;
+        return dot > 0;
+    }
+
     void draw(const std::vector<Vector3> &vertices, enginep::Camera &cam) const
     {
-        DrawTriangle(PointPerspective(vertices[this->a], cam),
-                     PointPerspective(vertices[this->b], cam),
-                     PointPerspective(vertices[this->c], cam),
-                     WHITE);
+        if (!isFrontFacing(vertices, cam))
+            return;
+
+        DrawTriangle(WorldToScreen(vertices[this->a], cam),
+                     WorldToScreen(vertices[this->c], cam), // c antes de b
+                     WorldToScreen(vertices[this->b], cam),
+                     cl);
     }
 };
 
@@ -73,38 +95,58 @@ int main()
 {
     InitWindow(WIDTH_WINDOWS, HEIGHT_WINDOWS, "engine 3d");
     SetTargetFPS(60);
-    // vertices de um plano
+
     std::vector<Vector3> vertices = {
-        {10, 10, 30},
-        {-10, 10, 30},
-        {-10, -10, 30},
-        {10, -10, 30}};
-    // faces do plano
+        {10, 10, 30},   // 0
+        {-10, 10, 30},  // 1
+        {-10, -10, 30}, // 2
+        {10, -10, 30},  // 3
+        {10, 10, 50},   // 4
+        {-10, 10, 50},  // 5
+        {-10, -10, 50}, // 6
+        {10, -10, 50}}; // 7
+
     std::vector<Face> faces = {
-        {0, 1, 3},
-        {1, 2, 3}};
+        // frente
+        {0, 3, 1, RED},
+        {1, 3, 2, RED},
+        // trás
+        {4, 5, 7, BLUE},
+        {5, 6, 7, BLUE},
+        // lateral direita
+        {0, 4, 3, GREEN},
+        {4, 7, 3, GREEN},
+        // lateral esquerda
+        {1, 2, 5, YELLOW},
+        {5, 2, 6, YELLOW},
+        // topo
+        {0, 5, 4, ORANGE},
+        {0, 1, 5, ORANGE},
+        // base
+        {3, 7, 6, PURPLE},
+        {3, 6, 2, PURPLE}};
 
     enginep::Camera cam;
+
     while (!WindowShouldClose())
     {
-
         float dt = GetFrameTime();
         float speed = 10;
         if (IsKeyDown(KEY_A))
-            cam.camPos.x += speed * dt;
-        if (IsKeyDown(KEY_D))
             cam.camPos.x -= speed * dt;
+        if (IsKeyDown(KEY_D))
+            cam.camPos.x += speed * dt;
         if (IsKeyDown(KEY_W))
-            cam.camPos.z -= speed * dt;
-        if (IsKeyDown(KEY_S))
             cam.camPos.z += speed * dt;
+        if (IsKeyDown(KEY_S))
+            cam.camPos.z -= speed * dt;
 
         BeginDrawing();
         ClearBackground(BLACK);
+
+        // SEM SORT! O Backface Culling já resolve o problema para este cubo.
         for (const auto &f : faces)
-        {
             f.draw(vertices, cam);
-        }
 
         EndDrawing();
     }
