@@ -128,6 +128,8 @@ int main()
 
     enginep::Camera cam;
 
+    float vycam = 0;
+
     while (!WindowShouldClose())
     {
         float dt = GetFrameTime();
@@ -140,6 +142,20 @@ int main()
             cam.camPos.z += speed * dt;
         if (IsKeyDown(KEY_S))
             cam.camPos.z -= speed * dt;
+
+        // pequena fisic de pulo para ve a face de cima 
+        if(IsKeyPressed(KEY_SPACE)){
+            cam.camPos.y+=0.5f;
+             vycam = 1;
+        }
+        vycam -= 0.9f * dt;
+
+        if(cam.camPos.y<=0){
+            vycam =0;
+            cam.camPos.y =0;
+        }
+         cam.camPos.y += vycam;
+
 
         BeginDrawing();
         ClearBackground(BLACK);
