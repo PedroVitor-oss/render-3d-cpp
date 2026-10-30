@@ -15,9 +15,15 @@ namespace enginep
 {
     class Camera
     {
+    private:
+        float speed = 10;
+        float speedRotate = 1.0f;
+        float vy = 0;
+
     public:
         Vector3 camPos = {0, 0, 0};
         Vector3 rotate = {0, 0, 0}; // 0, eixo y , 0
+        void MoveCam(float dt);
     };
 };
 
@@ -29,12 +35,12 @@ Vector3 GetForwardVector(Vector3 rotate)
         cosf(rotate.y) * cosf(rotate.x)};
 }
 
-Vector3 GetRightVector(Vector3 rotate){
+Vector3 GetRightVector(Vector3 rotate)
+{
     return {
         cosf(rotate.y) * cosf(rotate.z) + sinf(rotate.y) * sinf(rotate.x) * sinf(rotate.z),
         cosf(rotate.x) * sinf(rotate.z),
-        -sin(rotate.y) * cosf(rotate.z) + cosf(rotate.y) * sinf(rotate.x) * sinf(rotate.z)
-    };
+        -sin(rotate.y) * cosf(rotate.z) + cosf(rotate.y) * sinf(rotate.x) * sinf(rotate.z)};
 }
 
 Vector3 WorldCam(Vector3 pointInWorld, const enginep::Camera &cam)
@@ -46,14 +52,14 @@ Vector3 WorldCam(Vector3 pointInWorld, const enginep::Camera &cam)
 
     float cy = cosf(-cam.rotate.y);
     float sy = sinf(-cam.rotate.y);
-    
+
     float cx = cosf(-cam.rotate.x);
     float sx = sinf(-cam.rotate.x);
 
     float tempx = p.x;
     p.x = p.x * cy - p.z * sy;
     p.z = tempx * sy + p.z * cy;
-    
+
     float tempy = p.y;
     p.y = p.y * cx - p.z * sx;
     p.z = tempy * sx + p.z * cx;
@@ -66,7 +72,7 @@ Vector2 PointPerspective(Vector3 v)
     float f = 1 / tan(angleRAD / 2);
 
     Vector2 v2;
-    if (v.z <= 0.0001f)
+    if (v.z <= 0.000001f)
         return {-10000, -10000};
 
     v2.x = (v.x / v.z) * (f / aspect) * (WIDTH_WINDOWS / 2) + (WIDTH_WINDOWS / 2);
@@ -78,6 +84,27 @@ Vector2 PointPerspective(Vector3 v)
 Vector2 WorldToScreen(Vector3 v, const enginep::Camera &cam)
 {
     return PointPerspective(WorldCam(v, cam));
+}
+
+// Retorna true se a linha foi desenhada com sucesso
+bool DrawLine3D(Vector3 a, Vector3 b, enginep::Camera &cam, Color color)
+{
+    // 1. Transforma para o espaço da câmera
+    Vector3 ca = WorldCam(a, cam);
+    Vector3 cb = WorldCam(b, cam);
+
+    // 2. Se um dos pontos estiver atrás da câmera, ignora a linha inteira
+    // (Isso evita o efeito de linhas cruzando a tela)
+    if (ca.z <= 0.1f || cb.z <= 0.1f)
+        return false;
+
+    // 3. Projeta para a tela
+    Vector2 pa = PointPerspective(ca);
+    Vector2 pb = PointPerspective(cb);
+
+    // 4. Desenha
+    DrawLineV(pa, pb, color);
+    return true;
 }
 
 class Face
@@ -151,7 +178,6 @@ public:
 class Model3D
 {
 private:
-    std::vector<Vector3> vertices;
     std::vector<Face> faces;
     void AddVertice(std::string data)
     {
@@ -174,6 +200,7 @@ private:
     }
 
 public:
+    std::vector<Vector3> vertices;
     void Init(std::string path)
     {
         // abrir arquivo
@@ -212,79 +239,94 @@ public:
             f.draw(vertices, cam);
     }
 };
+
+class Entity
+{
+private:
+    Model3D model;
+    Model3D saveModel;
+
+public:
+    Vector3 position = {0,0,0};
+    Vector3 rotation = {0,0,0};
+    void SetModel(Model3D m)
+    {
+        this->model = m;
+        this->saveModel = m;
+    }
+    void Render(enginep::Camera &cam)
+    {
+        // para cada vertice adiciaonr um offset que no caso seria o position
+        // for (int i =0 ; i < this->saveModel.vertices.size(); i++){
+        //     Vector3 nv = {
+        //         this->saveModel.vertices[i].x + this->position.x,
+        //         this->saveModel.vertices[i].y + this->position.y,
+        //         this->saveModel.vertices[i].z + this->position.z,
+        //     };
+        //     this->model.vertices[i] = nv;
+        // }
+        // ROTACIONAR O objeto 
+        for (int i =0 ; i < this->saveModel.vertices.size(); i++){
+            float x = this->saveModel.vertices[i].x;
+            float z = this->saveModel.vertices[i].z;
+            
+            float nx = (cosf(this->rotation.y) * x) - (z * sinf(this->rotation.y));
+            float ny = (sinf(this->rotation.y) * x) + (z * cosf(this->rotation.y));
+            Vector3 nv = {
+                nx + this->position.x,
+                this->saveModel.vertices[i].y + this->position.y,
+                ny + this->position.z,
+            };
+            this->model.vertices[i] = nv;
+        }
+
+        this->model.Renderer(cam);
+    }
+};
+
 int main()
 {
-    Model3D cubo;
-    cubo.Init("models/cubo.mdl");
+    // carregar modelos
+    Model3D cuboModel;
+    Model3D plane;
+
+    cuboModel.Init("models/cubo.mdl");
+    plane.Init("models/plane.mdl");
+
+    // criando entidades
+    std::vector<Entity> entidades;
+    for(int i =0; i < 3; i ++){
+        Entity cubo;
+        cubo.SetModel(cuboModel);
+        cubo.position.x = -20 + (20 * i);
+        entidades.push_back(cubo);
+    }
 
     // return 1;
     InitWindow(WIDTH_WINDOWS, HEIGHT_WINDOWS, "engine 3d");
     SetTargetFPS(60);
 
     enginep::Camera cam;
-
-    float vycam = 0;
+    cam.camPos.z = -50;
 
     while (!WindowShouldClose())
     {
         float dt = GetFrameTime();
-        float speed = 10;
-        float speedRotate = 1.0f;
-        // movimento
-
-        Vector3 forward = GetForwardVector(cam.rotate);
-        Vector3 right = GetRightVector(cam.rotate);
-
-        if (IsKeyDown(KEY_W))
-        {
-            cam.camPos.z += speed * dt * forward.z;
-            cam.camPos.x -= speed * dt * forward.x;
-        }
-        if (IsKeyDown(KEY_S))
-        {
-            cam.camPos.z -= speed * dt * forward.z;
-            cam.camPos.x += speed * dt * forward.x;
-        }
-        if (IsKeyDown(KEY_A))
-        {
-            cam.camPos.z += speed * dt * right.z;
-            cam.camPos.x -= speed * dt * right.x;
-        }
-        if (IsKeyDown(KEY_D))
-        {
-            cam.camPos.z -= speed * dt * right.z;
-            cam.camPos.x += speed * dt * right.x;
-        }
-
-        // rotação
-        if (IsKeyDown(KEY_LEFT))
-            cam.rotate.y -= speedRotate * dt;
-        if (IsKeyDown(KEY_RIGHT))
-            cam.rotate.y += speedRotate * dt;
-        if (IsKeyDown(KEY_UP))
-            cam.rotate.x -= speedRotate * dt;
-        if (IsKeyDown(KEY_DOWN))
-            cam.rotate.x += speedRotate * dt;
-        
-        // pequena fisic de pulo para ve a face de cima
-        if (IsKeyPressed(KEY_SPACE))
-        {
-            cam.camPos.y += 0.5f;
-            vycam = 1;
-        }
-        vycam -= 0.9f * dt;
-
-        if (cam.camPos.y <= 0)
-        {
-            vycam = 0;
-            cam.camPos.y = 0;
-        }
-        cam.camPos.y += vycam;
+        cam.MoveCam(dt);
+        // if(IsKeyDown(KEY_P)){
+        //     cubo.rotation.y += 1 * dt ;
+        // }
+        // if(IsKeyDown(KEY_KP_6)){
+        //     cubo.position.x += 3 * dt ;
+        // }
 
         BeginDrawing();
         ClearBackground(BLACK);
 
-        cubo.Renderer(cam);
+        for(auto& cubo : entidades){
+            cubo.Render(cam);
+        }
+        // plane.Renderer(cam);
         // for (const auto &f : faces)
         //     f.draw(vertices, cam);
 
@@ -292,4 +334,59 @@ int main()
     }
     CloseWindow();
     return 0;
+}
+
+void enginep::Camera::MoveCam(float dt)
+{
+
+    // movimento
+
+    Vector3 forward = GetForwardVector(this->rotate);
+    Vector3 right = GetRightVector(this->rotate);
+
+    if (IsKeyDown(KEY_W))
+    {
+        this->camPos.z += this->speed * dt * forward.z;
+        this->camPos.x -= this->speed * dt * forward.x;
+    }
+    if (IsKeyDown(KEY_S))
+    {
+        this->camPos.z -= this->speed * dt * forward.z;
+        this->camPos.x += this->speed * dt * forward.x;
+    }
+    if (IsKeyDown(KEY_A))
+    {
+        this->camPos.z += this->speed * dt * right.z;
+        this->camPos.x -= this->speed * dt * right.x;
+    }
+    if (IsKeyDown(KEY_D))
+    {
+        this->camPos.z -= this->speed * dt * right.z;
+        this->camPos.x += this->speed * dt * right.x;
+    }
+
+    // rotação
+    if (IsKeyDown(KEY_LEFT))
+        this->rotate.y += this->speedRotate * dt;
+    if (IsKeyDown(KEY_RIGHT))
+        this->rotate.y -= this->speedRotate * dt;
+    if (IsKeyDown(KEY_UP))
+        this->rotate.x -= this->speedRotate * dt;
+    if (IsKeyDown(KEY_DOWN))
+        this->rotate.x += this->speedRotate * dt;
+
+    // pequena fisic de pulo para ve a face de cima
+    if (IsKeyPressed(KEY_SPACE))
+    {
+        this->camPos.y += 0.5f;
+        this->vy = 1;
+    }
+    this->vy -= 0.9f * dt;
+
+    if (this->camPos.y <= 0)
+    {
+        this->vy = 0;
+        this->camPos.y = 0;
+    }
+    this->camPos.y += this->vy;
 }
