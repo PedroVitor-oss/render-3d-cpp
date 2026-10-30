@@ -295,7 +295,7 @@ int main()
 
     // criando entidades
     std::vector<Entity> entidades;
-    for(int i =0; i < 3; i ++){
+    for(int i =1; i <= 1; i ++){
         Entity cubo;
         cubo.SetModel(cuboModel);
         cubo.position.x = -20 + (20 * i);
@@ -313,9 +313,9 @@ int main()
     {
         float dt = GetFrameTime();
         cam.MoveCam(dt);
-        // if(IsKeyDown(KEY_P)){
-        //     cubo.rotation.y += 1 * dt ;
-        // }
+        if(IsKeyDown(KEY_P)){
+            entidades[0].rotation.y += 1 * dt ;
+        }
         // if(IsKeyDown(KEY_KP_6)){
         //     cubo.position.x += 3 * dt ;
         // }
