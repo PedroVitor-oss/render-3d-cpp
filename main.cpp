@@ -29,6 +29,14 @@ Vector3 GetForwardVector(Vector3 rotate)
         cosf(rotate.y) * cosf(rotate.x)};
 }
 
+Vector3 GetRightVector(Vector3 rotate){
+    return {
+        cosf(rotate.y) * cosf(rotate.z) + sinf(rotate.y) * sinf(rotate.x) * sinf(rotate.z),
+        cosf(rotate.x) * sinf(rotate.z),
+        -sin(rotate.y) * cosf(rotate.z) + cosf(rotate.y) * sinf(rotate.x) * sinf(rotate.z)
+    };
+}
+
 Vector3 WorldCam(Vector3 pointInWorld, const enginep::Camera &cam)
 {
     Vector3 p = {
@@ -36,16 +44,21 @@ Vector3 WorldCam(Vector3 pointInWorld, const enginep::Camera &cam)
         pointInWorld.y - cam.camPos.y,
         pointInWorld.z - cam.camPos.z};
 
-    float c = cosf(-cam.rotate.y);
-    float s = sinf(-cam.rotate.y);
+    float cy = cosf(-cam.rotate.y);
+    float sy = sinf(-cam.rotate.y);
+    
+    float cx = cosf(-cam.rotate.x);
+    float sx = sinf(-cam.rotate.x);
 
     float tempx = p.x;
-
-    p.x = p.x * c - p.z * s;
-    p.z = tempx * s + p.z * c;
+    p.x = p.x * cy - p.z * sy;
+    p.z = tempx * sy + p.z * cy;
+    
+    float tempy = p.y;
+    p.y = p.y * cx - p.z * sx;
+    p.z = tempy * sx + p.z * cx;
     return p;
 }
-
 Vector2 PointPerspective(Vector3 v)
 {
     float aspect = (float)WIDTH_WINDOWS / (float)HEIGHT_WINDOWS;
@@ -220,6 +233,8 @@ int main()
         // movimento
 
         Vector3 forward = GetForwardVector(cam.rotate);
+        Vector3 right = GetRightVector(cam.rotate);
+
         if (IsKeyDown(KEY_W))
         {
             cam.camPos.z += speed * dt * forward.z;
@@ -230,13 +245,27 @@ int main()
             cam.camPos.z -= speed * dt * forward.z;
             cam.camPos.x += speed * dt * forward.x;
         }
+        if (IsKeyDown(KEY_A))
+        {
+            cam.camPos.z += speed * dt * right.z;
+            cam.camPos.x -= speed * dt * right.x;
+        }
+        if (IsKeyDown(KEY_D))
+        {
+            cam.camPos.z -= speed * dt * right.z;
+            cam.camPos.x += speed * dt * right.x;
+        }
 
         // rotação
         if (IsKeyDown(KEY_LEFT))
             cam.rotate.y -= speedRotate * dt;
         if (IsKeyDown(KEY_RIGHT))
             cam.rotate.y += speedRotate * dt;
-
+        if (IsKeyDown(KEY_UP))
+            cam.rotate.x -= speedRotate * dt;
+        if (IsKeyDown(KEY_DOWN))
+            cam.rotate.x += speedRotate * dt;
+        
         // pequena fisic de pulo para ve a face de cima
         if (IsKeyPressed(KEY_SPACE))
         {
