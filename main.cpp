@@ -1,4 +1,5 @@
 #include "raylib.h"
+#include "rlgl.h"
 #include <vector>
 #include <math.h>
 #include <iostream>
@@ -10,6 +11,8 @@
 constexpr int WIDTH_WINDOWS = 700;
 constexpr int HEIGHT_WINDOWS = 350;
 constexpr float FOV = 60.0f;
+constexpr float NEAR_PLANE = 0.1;
+enum Layer {LAYER_FLOOR = 0,LAYER_OBJECTS};
 
 namespace enginep
 {
@@ -86,7 +89,6 @@ Vector2 WorldToScreen(Vector3 v, const enginep::Camera &cam)
     return PointPerspective(WorldCam(v, cam));
 }
 
-// Retorna true se a linha foi desenhada com sucesso
 bool DrawLine3D(Vector3 a, Vector3 b, enginep::Camera &cam, Color color)
 {
     // 1. Transforma para o espaço da câmera
@@ -106,6 +108,69 @@ bool DrawLine3D(Vector3 a, Vector3 b, enginep::Camera &cam, Color color)
     DrawLineV(pa, pb, color);
     return true;
 }
+
+int ClipNear(const Vector3 in[3], Vector3 out[4])
+{
+    int n = 0;
+    for (int i = 0; i < 3; i++)
+    {
+        Vector3 cur = in[i];
+        Vector3 nxt = in[(i + 1) % 3];
+        bool curIn = cur.z >= NEAR_PLANE;
+        bool nxtIn = nxt.z >= NEAR_PLANE;
+ 
+        if (curIn)
+            out[n++] = cur;
+ 
+        if (curIn != nxtIn)
+        {
+            float t = (NEAR_PLANE - cur.z) / (nxt.z - cur.z);
+            out[n++] = {
+                cur.x + (nxt.x - cur.x) * t,
+                cur.y + (nxt.y - cur.y) * t,
+                NEAR_PLANE};
+        }
+    }
+    return n;
+}
+struct ScreenTri
+{
+    Vector2 p[3];
+    float depth; // z médio no espaço da câmera
+    int layer;
+    Color color;
+};
+class RenderQueue
+{
+private:
+    std::vector<ScreenTri> tris;
+ 
+public:
+    bool wireframe = true;
+ 
+    void Push(const ScreenTri &t) { tris.push_back(t); }
+ 
+    void Flush()
+    {
+        std::sort(tris.begin(), tris.end(), [](const ScreenTri &a, const ScreenTri &b)
+                  {
+            if (a.layer != b.layer)
+                return a.layer < b.layer;  // chão primeiro
+            return a.depth > b.depth; });  // mais longe primeiro
+ 
+        for (const auto &t : tris)
+        {
+            DrawTriangle(t.p[0], t.p[1], t.p[2], t.color);
+            if (wireframe)
+            {
+                DrawLineV(t.p[0], t.p[1], BLACK);
+                DrawLineV(t.p[1], t.p[2], BLACK);
+                DrawLineV(t.p[2], t.p[0], BLACK);
+            }
+        }
+        tris.clear();
+    }
+};
 
 class Face
 {
@@ -141,7 +206,35 @@ public:
         float dot = normal.x * toCam.x + normal.y * toCam.y + normal.z * toCam.z;
         return dot > 0;
     }
-
+    void Submit(const std::vector<Vector3> &vertices, const enginep::Camera &cam,
+                RenderQueue &queue, int layer) const
+    {
+        if (!isFrontFacing(vertices, cam))
+            return;
+ 
+        Vector3 v[3] = {
+            WorldCam(vertices[a], cam),
+            WorldCam(vertices[b], cam),
+            WorldCam(vertices[c], cam)};
+ 
+        Vector3 poly[4];
+        int n = ClipNear(v, poly);
+        if (n < 3)
+            return;
+ 
+        // triangula o polígono (3 vértices -> 1 triângulo, 4 -> 2 triângulos)
+        for (int i = 1; i < n - 1; i++)
+        {
+            ScreenTri t;
+            t.p[0] = PointPerspective(poly[0]);
+            t.p[1] = PointPerspective(poly[i]);
+            t.p[2] = PointPerspective(poly[i + 1]);
+            t.depth = (poly[0].z + poly[i].z + poly[i + 1].z) / 3.0f;
+            t.layer = layer;
+            t.color = cl;
+            queue.Push(t);
+        }
+    }
     void draw(const std::vector<Vector3> &vertices, enginep::Camera &cam) const
     {
         if (!isFrontFacing(vertices, cam))
@@ -201,6 +294,31 @@ private:
 
 public:
     std::vector<Vector3> vertices;
+     void AddTriangle(int a, int b, int c, Color color)
+    {
+        faces.push_back(Face(a, b, c, color));
+    } 
+      void BuildGrid(int tiles, float tileSize, Color c1, Color c2)
+    {
+        float half = tiles * tileSize * 0.5f;
+        for (int j = 0; j <= tiles; j++)
+            for (int i = 0; i <= tiles; i++)
+                vertices.push_back({-half + i * tileSize, 0.0f, -half + j * tileSize});
+ 
+        auto idx = [&](int i, int j)
+        { return j * (tiles + 1) + i; };
+ 
+        for (int j = 0; j < tiles; j++)
+        {
+            for (int i = 0; i < tiles; i++)
+            {
+                Color c = ((i + j) % 2 == 0) ? c1 : c2;
+                // winding escolhido pra normal apontar pra +Y (cima)
+                AddTriangle(idx(i, j), idx(i, j + 1), idx(i + 1, j), c);
+                AddTriangle(idx(i + 1, j), idx(i, j + 1), idx(i + 1, j + 1), c);
+            }
+        }
+    }
     void Init(std::string path)
     {
         // abrir arquivo
@@ -237,6 +355,11 @@ public:
     {
         for (const auto &f : this->faces)
             f.draw(vertices, cam);
+    }   
+    void Submit(const enginep::Camera &cam, RenderQueue &queue, int layer)
+    {
+        for (const auto &f : this->faces)
+            f.Submit(vertices, cam, queue, layer);
     }
 };
 
@@ -249,12 +372,14 @@ private:
 public:
     Vector3 position = {0,0,0};
     Vector3 rotation = {0,0,0};
+        int layer = LAYER_OBJECTS;
+
     void SetModel(Model3D m)
     {
         this->model = m;
         this->saveModel = m;
     }
-    void Render(enginep::Camera &cam)
+    void Render(enginep::Camera &cam,RenderQueue &queue)
     {
         // para cada vertice adiciaonr um offset que no caso seria o position
         // for (int i =0 ; i < this->saveModel.vertices.size(); i++){
@@ -280,7 +405,7 @@ public:
             this->model.vertices[i] = nv;
         }
 
-        this->model.Renderer(cam);
+        this->model.Submit(cam,queue,this->layer);
     }
 };
 
@@ -293,14 +418,24 @@ int main()
     cuboModel.Init("models/cubo.mdl");
     plane.Init("models/plane.mdl");
 
+     // chão
+    Model3D floorModel;
+    floorModel.BuildGrid(20, 10.0f, DARKGRAY, GRAY); // 200 x 200 unidades
+
     // criando entidades
     std::vector<Entity> entidades;
-    for(int i =1; i <= 1; i ++){
+    for(int i =0; i < 3; i ++){
         Entity cubo;
         cubo.SetModel(cuboModel);
-        cubo.position.x = -20 + (20 * i);
+        cubo.position.x = -30 + (30 * i);
+        cubo.layer = LAYER_OBJECTS;
         entidades.push_back(cubo);
     }
+
+    Entity floor;
+    floor.SetModel(floorModel);
+    floor.position.y = -10;
+    floor.layer = LAYER_FLOOR;
 
     // return 1;
     InitWindow(WIDTH_WINDOWS, HEIGHT_WINDOWS, "engine 3d");
@@ -309,23 +444,28 @@ int main()
     enginep::Camera cam;
     cam.camPos.z = -50;
 
+    RenderQueue queue;
+
+    rlDisableBackfaceCulling();
     while (!WindowShouldClose())
     {
         float dt = GetFrameTime();
         cam.MoveCam(dt);
+
         if(IsKeyDown(KEY_P)){
             entidades[0].rotation.y += 1 * dt ;
         }
-        // if(IsKeyDown(KEY_KP_6)){
-        //     cubo.position.x += 3 * dt ;
-        // }
+       if (IsKeyPressed(KEY_TAB))
+            queue.wireframe = !queue.wireframe;
 
         BeginDrawing();
         ClearBackground(BLACK);
-
+        floor.Render(cam,queue);
         for(auto& cubo : entidades){
-            cubo.Render(cam);
+            cubo.Render(cam,queue);
         }
+
+        queue.Flush();
         // plane.Renderer(cam);
         // for (const auto &f : faces)
         //     f.draw(vertices, cam);
