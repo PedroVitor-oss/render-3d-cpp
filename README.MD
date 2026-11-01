@@ -1,5 +1,5 @@
 #  Software Renderer em C++ com Raylib
-![img](https://raw.githubusercontent.com/PedroVitor-oss/render-3d-cpp/refs/heads/main/docs/img/banner.gif)<br>
+![img](https://raw.githubusercontent.com/PedroVitor-oss/render-3d-cpp/refs/heads/main/docs/img/banner_ilumination.png)<br>
 Uma engine 3D minimalista escrita do zero em C++, usando **apenas Raylib** para criar a janela e desenhar pixels/linhas/triângulos. Toda a matemática de projeção, view transform, culling e carregamento de modelos é implementada manualmente — sem uso de OpenGL, shaders ou bibliotecas de matemática 3D como GLM.
 
 O objetivo é **aprender** como um pipeline 3D funciona por baixo do capô, camada por camada.
@@ -17,17 +17,14 @@ O objetivo é **aprender** como um pipeline 3D funciona por baixo do capô, cama
 - ✅ **Cores por face** (usado para debug visual e estilo)
 - ✅ **Pitch (olhar para cima/baixo)**
 - ✅ **Rotação de objetos**
-- ✅ Contorno preto estilo *cel shading* (drawOutlines)
-
+- ✅ **Contorno preto estilo *cel shading* (drawOutlines)**
+- ✅ **Iluminação flat por normal (`dot(normal, lightDir)`)**
+- ✅ **Near-plane clipping (evitar "buracos" ao chegar perto de objetos)**
+- ✅ **Chão e grid de referência**
+- ✅ **Múltiplos objetos na cena**
 ---
 
 ## 🚧 Em desenvolvimento / roadmap
-
-
-- [ ] Iluminação flat por normal (`dot(normal, lightDir)`)
-- [ ] Near-plane clipping (evitar "buracos" ao chegar perto de objetos)
-- [ ] Chão e grid de referência
-- [ ] Múltiplos objetos na cena
 - [ ] Z-buffer ou painter's algorithm robusto para oclusão entre objetos
 
 ---
