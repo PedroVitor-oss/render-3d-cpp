@@ -158,7 +158,10 @@ public:
         this->cl = cl;
         this->intensity = intenxity;
     }
-
+    float GetIntensity()
+    {
+        return this->intensity;
+    }
     Vector3 GetDir() const
     {
         return this->dir;
@@ -227,6 +230,26 @@ public:
             AB.z * AC.x - AB.x * AC.z,
             AB.x * AC.y - AB.y * AC.x};
 
+        // float dot = normal.x * A.x + normal.y * A.y + normal.z * A.z;
+        // if (dot < 0)
+        // {
+
+        //     normal.x = -normal.x;
+        //     normal.y = -normal.y;
+        //     normal.z = -normal.z;
+        // }
+        // if (fabs(normal.y) > fabs(normal.x) && fabs(normal.y) > fabs(normal.z))
+        // {
+        //     normal.y = fabs(normal.y);
+        // }
+        float length = std::sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
+        if (length > 0.0001f)
+        {
+            normal.x /= length;
+            normal.y /= length;
+            normal.z /= length;
+        }
+
         return normal;
     }
 
@@ -263,18 +286,17 @@ public:
         Vector3 normal = NormalFace(vertices);
         Vector3 lightDir = queue.light->GetDir(); // light->GetDir();
         float shine = (normal.x * lightDir.x) + (normal.y * lightDir.y) + (normal.z * lightDir.z);
-        shine = std::max(0.3f, shine);
+        shine = std::max(0.0f, shine);
         // shine = std::min(1.0f, shine);
-        if (std::isnan(shine) || std::isinf(shine))
+        float finalShine = shine *0.7 + 0.3;
+        if (layer == LAYER_FLOOR)
         {
-            TraceLog(LOG_INFO, "Luz: %f %f %f", queue.light->GetDir().x, queue.light->GetDir().y, queue.light->GetDir().z);
-            shine = 1.0f;
+            finalShine = 1.0f;
         }
-
         Color ncl;
-        ncl.r = (unsigned char)(cl.r * shine);
-        ncl.g = (unsigned char)(cl.g * shine);
-        ncl.b = (unsigned char)(cl.b * shine);
+        ncl.r = (unsigned char)(cl.r * finalShine);
+        ncl.g = (unsigned char)(cl.g * finalShine);
+        ncl.b = (unsigned char)(cl.b * finalShine);
         ncl.a = 255;
 
         for (int i = 1; i < n - 1; i++)
@@ -439,7 +461,6 @@ public:
     {
 
         this->scale = s;
-       
     }
 
     void SetModel(Model3D m)
@@ -460,7 +481,6 @@ public:
             float nx = (cosf(this->rotation.y) * x) - (z * sinf(this->rotation.y));
             float ny = (sinf(this->rotation.y) * x) + (z * cosf(this->rotation.y));
 
-        
             Vector3 nv = {
                 nx + this->position.x,
                 y + this->position.y,
