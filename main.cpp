@@ -334,7 +334,21 @@ private:
         std::stringstream stream(data);
         char type;
         int A, B, C, COLORID;
-        stream >> type >> A >> B >> C >> COLORID;
+        stream >> type;
+        //modelo para .obj é f id/M/N(chamar de token)  id/M/N  id/M/N 
+        std::string token;
+        std::vector<int> ids;
+        while(stream >> token ){
+            // pegar o id da primeira /
+            int pos = token.find('/');
+            std::string idStr = token.substr(0,pos);
+            int id = std::stoi(idStr) - 1;
+            ids.push_back(id);
+        }
+        A = ids[0];
+        B = ids[1];
+        C = ids[2];
+
         Face f = {A, B, C, WHITE};
         faces.push_back(f);
     }
@@ -382,16 +396,13 @@ public:
         while (std::getline(file, line))
         {
             std::cout << line << std::endl;
-            switch ((char)line[0])
-            {
-            case 'v':
+            std::string prefix = line.substr(0,2);
+            if(prefix == "v "){
                 this->AddVertice(line);
-                break;
-            case 'f':
+
+            }else if(prefix == "f "){
                 this->AddFace(line);
-                break;
-            default:
-                break;
+
             }
         }
 
@@ -454,15 +465,15 @@ int main()
     Model3D cuboModel;
     Model3D plane;
 
-    cuboModel.Init("models/cubo.mdl");
-    plane.Init("models/plane.mdl");
+    cuboModel.Init("models/cubo.obj");
+    // plane.Init("models/plane.mdl");
 
     Model3D floorModel;
     floorModel.BuildGrid(20, 10.0f, DARKGRAY, GRAY);
 
     // criando entidade
     std::vector<Entity> entidades;
-    for (int i = 0; i < 3; i++)
+    for (int i = 2; i < 3; i++)
     {
         Entity cubo;
         cubo.SetModel(cuboModel);
