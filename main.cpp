@@ -7,6 +7,7 @@
 #include <string>
 #include <sstream>
 #include <algorithm>
+#include <map>
 
 constexpr int WIDTH_WINDOWS = 700;
 constexpr int HEIGHT_WINDOWS = 350;
@@ -288,7 +289,7 @@ public:
         float shine = (normal.x * lightDir.x) + (normal.y * lightDir.y) + (normal.z * lightDir.z);
         shine = std::max(0.0f, shine);
         // shine = std::min(1.0f, shine);
-        float finalShine = shine *0.7 + 0.3;
+        float finalShine = shine * 0.7 + 0.3;
         if (layer == LAYER_FLOOR)
         {
             finalShine = 1.0f;
@@ -342,6 +343,7 @@ class Model3D
 {
 private:
     std::vector<Face> faces;
+    std::map<std::string, Color> textureMap;
     void AddVertice(std::string data)
     {
         std::stringstream stream(data);
@@ -352,7 +354,7 @@ private:
 
         vertices.push_back(v);
     }
-    void AddFace(std::string data)
+    void AddFace(std::string data, Color color)
     {
         std::stringstream stream(data);
         char type;
@@ -373,10 +375,79 @@ private:
         B = ids[1];
         C = ids[2];
 
-        Face f = {A, B, C, WHITE};
+        Face f = {A, B, C, color};
         faces.push_back(f);
     }
+    void ReadModelOBJ(std::string path)
+    {
+        std::fstream file;
+        file.open(path);
+        if (!file.is_open())
+        {
+            std::cout << "Erro ao abrir arquivo do modelo 3d. Path file: " << path << std::endl;
+            file.close();
+            return;
+        }
 
+        std::string line;
+        Color currentColor = WHITE;
+        while (std::getline(file, line))
+        {
+            // std::cout << line << std::endl;
+            int div = line.find(" ");
+            std::string prefix = line.substr(0, div);
+            if(prefix == "usemtl"){
+                std::string colorName = line.substr(div+1);
+                if(textureMap.find(colorName) != textureMap.end()){
+                    currentColor = textureMap[colorName];
+                }
+            }else if (prefix == "v")
+            {
+                this->AddVertice(line);
+            }
+            else if (prefix == "f")
+            {
+                this->AddFace(line,currentColor);
+            }
+        }
+
+        file.close();
+    }
+    void ReadTextureFile(std::string path)
+    {
+     std::fstream file;
+     file.open(path);
+     if(!file.is_open()){
+        TraceLog(LOG_WARNING, "Erro ao abrir arquivo de textura, path: %s",path);
+        file.close();
+        return;
+     }
+     std::string line;
+     std::string colorName;
+     Color colorValue;
+     bool seachColorValue = false;
+     while(std::getline(file,line)){
+        int div = line.find(" ");
+        std::string prefix = line.substr(0,div);
+        if(prefix == "newmtl"){
+            colorName = line.substr(div+1);
+            seachColorValue = true;
+
+        }
+        if(prefix == "Kd" && seachColorValue){
+            std::stringstream stream(line.substr(div+1));
+            float r,g,b;
+            stream >>r >>g >>b;
+            colorValue.r = (unsigned char)(r*255);
+            colorValue.g = (unsigned char)(g*255);
+            colorValue.b = (unsigned char)(b*255);
+            colorValue.a = 255;
+            textureMap[colorName] = colorValue;
+            seachColorValue = false;
+        }
+
+     }
+    }
 public:
     std::vector<Vector3> vertices;
     void AddTriangle(int a, int b, int c, Color color)
@@ -404,35 +475,16 @@ public:
             }
         }
     }
-    void Init(std::string path)
+    void Init(std::string pathModels, std::string pathTexture = "")
     {
 
-        std::fstream file;
-        file.open(path);
-        if (!file.is_open())
+        if (!pathTexture.empty())
         {
-            std::cout << "Erro ao abrir arquivo do modelo 3d. Path file: " << path << std::endl;
-            file.close();
-            return;
+            this->ReadTextureFile(pathTexture);
         }
-
-        std::string line;
-        while (std::getline(file, line))
-        {
-            std::cout << line << std::endl;
-            std::string prefix = line.substr(0, 2);
-            if (prefix == "v ")
-            {
-                this->AddVertice(line);
-            }
-            else if (prefix == "f ")
-            {
-                this->AddFace(line);
-            }
-        }
-
-        file.close();
+        this->ReadModelOBJ(pathModels);
     }
+
     void Renderer(enginep::Camera &cam)
     {
         for (const auto &f : this->faces)
@@ -499,7 +551,7 @@ int main()
     Model3D cuboModel;
     Model3D plane;
 
-    cuboModel.Init("models/cubo.obj");
+    cuboModel.Init("models/casa.obj","models/casa.mtl");
     // plane.Init("models/plane.mdl");
 
     Model3D floorModel;
