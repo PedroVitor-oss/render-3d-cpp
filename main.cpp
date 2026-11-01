@@ -20,25 +20,19 @@
 int main()
 {
     // carregando modelos
-    Model3D cuboModel;
+    Model3D mokeyModel;
     Model3D plane;
 
-    cuboModel.Init("models/casa.obj","models/casa.mtl");
+    mokeyModel.Init("models/monkey.obj","models/monkey.mtl");
     // plane.Init("models/plane.mdl");
 
     Model3D floorModel;
     floorModel.BuildGrid(20, 10.0f, DARKGRAY, GRAY);
 
     // criando entidade
-    std::vector<Entity> entidades;
-    for (int i = 2; i < 3; i++)
-    {
-        Entity cubo;
-        cubo.SetModel(cuboModel);
-        cubo.position.x = -30 + (30 * i);
-        cubo.layer = LAYER_OBJECTS;
-        entidades.push_back(cubo);
-    }
+    Entity monkey;
+    monkey.SetModel(mokeyModel);
+    
 
     Entity floor;
     floor.SetModel(floorModel);
@@ -53,7 +47,7 @@ int main()
     RenderQueue queue;
     queue.SetLight(&light);
 
-    entidades[0].SetScale({10, 10, 10});
+    monkey.SetScale({10, 10, 10});
 
     InitWindow(WIDTH_WINDOWS, HEIGHT_WINDOWS, "engine 3d");
     SetTargetFPS(60);
@@ -63,22 +57,14 @@ int main()
     {
         float dt = GetFrameTime();
         cam.MoveCam(dt);
-
-        if (IsKeyDown(KEY_P))
-        {
-            entidades[0].rotation.y += 1 * dt;
-        }
+        
         if (IsKeyPressed(KEY_TAB))
             queue.wireframe = !queue.wireframe;
 
         BeginDrawing();
         ClearBackground(BLACK);
         floor.Render(cam, queue);
-        for (auto &cubo : entidades)
-        {
-            cubo.Render(cam, queue);
-        }
-
+        monkey.Render(cam, queue);
         queue.Flush();
 
         EndDrawing();
