@@ -140,26 +140,27 @@ struct ScreenTri
     int layer;
     Color color;
 };
-class GlobalLight{
+class GlobalLight
+{
     Vector3 dir;
     Color cl;
     float intensity;
 
-    public:     
-    GlobalLight (Vector3 lightdir, Color cl, float intenxity){
-        //normalização de vetor direção 
-        float mag = std::sqrt(lightdir.x * lightdir.x + lightdir.y * lightdir.y + lightdir.z * lightdir.z );
+public:
+    GlobalLight(Vector3 lightdir, Color cl, float intenxity)
+    {
+        // normalização de vetor direção
+        float mag = std::sqrt(lightdir.x * lightdir.x + lightdir.y * lightdir.y + lightdir.z * lightdir.z);
         this->dir = {
             lightdir.x / mag,
             lightdir.y / mag,
-            lightdir.z / mag
-        };
+            lightdir.z / mag};
         this->cl = cl;
         this->intensity = intenxity;
-
     }
 
-    Vector3 GetDir() const{
+    Vector3 GetDir() const
+    {
         return this->dir;
     }
 };
@@ -226,7 +227,7 @@ public:
             AB.z * AC.x - AB.x * AC.z,
             AB.x * AC.y - AB.y * AC.x};
 
-            return normal;
+        return normal;
     }
 
     bool isFrontFacing(const std::vector<Vector3> &vertices, const enginep::Camera &cam) const
@@ -258,13 +259,14 @@ public:
         if (n < 3)
             return;
 
-        //clacular nova cor com base na luz globa dot product
+        // clacular nova cor com base na luz globa dot product
         Vector3 normal = NormalFace(vertices);
-        Vector3 lightDir = queue.light->GetDir(); //light->GetDir();
+        Vector3 lightDir = queue.light->GetDir(); // light->GetDir();
         float shine = (normal.x * lightDir.x) + (normal.y * lightDir.y) + (normal.z * lightDir.z);
         shine = std::max(0.3f, shine);
-// shine = std::min(1.0f, shine);
-        if(std::isnan(shine) || std::isinf(shine)){
+        // shine = std::min(1.0f, shine);
+        if (std::isnan(shine) || std::isinf(shine))
+        {
             TraceLog(LOG_INFO, "Luz: %f %f %f", queue.light->GetDir().x, queue.light->GetDir().y, queue.light->GetDir().z);
             shine = 1.0f;
         }
@@ -274,7 +276,6 @@ public:
         ncl.g = (unsigned char)(cl.g * shine);
         ncl.b = (unsigned char)(cl.b * shine);
         ncl.a = 255;
-
 
         for (int i = 1; i < n - 1; i++)
         {
@@ -335,13 +336,14 @@ private:
         char type;
         int A, B, C, COLORID;
         stream >> type;
-        //modelo para .obj é f id/M/N(chamar de token)  id/M/N  id/M/N 
+        // modelo para .obj é f id/M/N(chamar de token)  id/M/N  id/M/N
         std::string token;
         std::vector<int> ids;
-        while(stream >> token ){
+        while (stream >> token)
+        {
             // pegar o id da primeira /
             int pos = token.find('/');
-            std::string idStr = token.substr(0,pos);
+            std::string idStr = token.substr(0, pos);
             int id = std::stoi(idStr) - 1;
             ids.push_back(id);
         }
@@ -396,13 +398,14 @@ public:
         while (std::getline(file, line))
         {
             std::cout << line << std::endl;
-            std::string prefix = line.substr(0,2);
-            if(prefix == "v "){
+            std::string prefix = line.substr(0, 2);
+            if (prefix == "v ")
+            {
                 this->AddVertice(line);
-
-            }else if(prefix == "f "){
+            }
+            else if (prefix == "f ")
+            {
                 this->AddFace(line);
-
             }
         }
 
@@ -420,7 +423,6 @@ public:
     }
 };
 
-
 class Entity
 {
 private:
@@ -430,7 +432,15 @@ private:
 public:
     Vector3 position = {0, 0, 0};
     Vector3 rotation = {0, 0, 0};
+    Vector3 scale = {1, 1, 1};
     int layer = LAYER_OBJECTS;
+
+    void SetScale(Vector3 s)
+    {
+
+        this->scale = s;
+       
+    }
 
     void SetModel(Model3D m)
     {
@@ -442,14 +452,18 @@ public:
 
         for (int i = 0; i < this->saveModel.vertices.size(); i++)
         {
-            float x = this->saveModel.vertices[i].x;
-            float z = this->saveModel.vertices[i].z;
+            float x = this->saveModel.vertices[i].x * this->scale.x;
+            float y = this->saveModel.vertices[i].y * this->scale.y;
+            float z = this->saveModel.vertices[i].z * this->scale.z;
 
+            // Aplica a rotação Y
             float nx = (cosf(this->rotation.y) * x) - (z * sinf(this->rotation.y));
             float ny = (sinf(this->rotation.y) * x) + (z * cosf(this->rotation.y));
+
+        
             Vector3 nv = {
                 nx + this->position.x,
-                this->saveModel.vertices[i].y + this->position.y,
+                y + this->position.y,
                 ny + this->position.z,
             };
             this->model.vertices[i] = nv;
@@ -489,16 +503,17 @@ int main()
 
     GlobalLight light({0.5f, 1, 0.5f}, WHITE, 1.0f);
 
-    
     enginep::Camera cam;
     cam.camPos.z = -50;
-    
+
     RenderQueue queue;
     queue.SetLight(&light);
 
+    entidades[0].SetScale({10, 10, 10});
+
     InitWindow(WIDTH_WINDOWS, HEIGHT_WINDOWS, "engine 3d");
     SetTargetFPS(60);
-    
+
     rlDisableBackfaceCulling();
     while (!WindowShouldClose())
     {
